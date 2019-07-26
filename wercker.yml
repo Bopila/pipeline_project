@@ -1,0 +1,75 @@
+# The container definition we want to use for developing our application
+box: golang
+
+# Defining the dev pipeline
+dev: 
+  steps:
+      - wercker/setup-go-workspace:
+          package-dir: github.com/bopila/pipeline
+
+      - script:
+          name: env
+          code: env
+
+      - script:
+          name: go get
+          code: | 
+            cd $WERCKER_SOURCE_DIR
+            go version
+            go get -u github.com/Masterminds/glide
+            export PATH=$WERCKER_SOURCE_DIR/bin:$PATH
+            glide install
+
+build:
+  steps: 
+      - wercker/steps-go-workspace:
+          package-dir: github.com/bopila/pipeline
+
+      - script:
+          name: env
+          code: env
+
+      - script:
+          name: go get
+          code: |
+            cd $WERCKER_SOURCE_DIR
+            go verion
+            go get -u github.com/Masterminds/glide
+            export PAT=$WERCKER_SOURCE_DIR/bin:$PATH
+            glide install
+
+      - script:
+          name: go build
+          code: |
+            go build
+
+      - script:
+          name:
+          code: |
+            go test -v $(glide novendor)
+
+      - script:
+          name: copy files to wercker output
+          code: | 
+            cp -R ./ ${WERCKER_SOURCE_DIR}
+
+deploy:
+  steps:
+    - internal/docker-push
+        username: $DOCKER_USERNAME
+        password: $DOCKER_PASSWORD
+        cmd: /pipeline
+        port: "8080"
+        tag: latest
+        repository: bopila/pipeline
+        registry: https://registry.hub.docker.com
+
+   - cng/cf-deploy:
+       api: $API
+       user: $USER
+       password: $PASSWORD
+       org: $ORG
+       space: $SPACE
+       appname: wercker-step-hello
+       docker_image: bopila/pipeline
+
